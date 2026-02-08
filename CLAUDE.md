@@ -58,7 +58,7 @@ All tools accept `crate_name` (required) and `version` (optional, auto-resolved)
 - Use Plan mode for multi-file changes or new tools
 - Run `cargo build` after changes to verify compilation
 - Run `cargo test` to validate normalization logic
-- Run `cargo clippy` before committing
+- Run `cargo fmt` and `cargo clippy --all-targets` before committing
 
 ## Gotchas
 

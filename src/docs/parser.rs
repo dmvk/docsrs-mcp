@@ -31,7 +31,7 @@ pub fn parse_crate(krate: &Crate, crate_name: &str, version: &str) -> CrateIndex
     let mut path_map: HashMap<Id, String> = HashMap::new();
     for (id, summary) in &krate.paths {
         if !summary.path.is_empty() {
-            path_map.insert(id.clone(), summary.path.join("::"));
+            path_map.insert(*id, summary.path.join("::"));
         }
     }
 
@@ -748,13 +748,13 @@ fn render_generic_bound(bound: &GenericBound) -> String {
 fn render_generics(params: &[GenericParamDef]) -> String {
     let rendered: Vec<String> = params
         .iter()
-        .filter_map(|p| match &p.kind {
+        .map(|p| match &p.kind {
             GenericParamDefKind::Lifetime { outlives } => {
                 let mut s = p.name.clone();
                 if !outlives.is_empty() {
                     s.push_str(&format!(": {}", outlives.join(" + ")));
                 }
-                Some(s)
+                s
             }
             GenericParamDefKind::Type {
                 bounds, default, ..
@@ -767,14 +767,14 @@ fn render_generics(params: &[GenericParamDef]) -> String {
                 if let Some(def) = default {
                     s.push_str(&format!(" = {}", render_type(def)));
                 }
-                Some(s)
+                s
             }
             GenericParamDefKind::Const { type_, default } => {
                 let mut s = format!("const {}: {}", p.name, render_type(type_));
                 if let Some(def) = default {
                     s.push_str(&format!(" = {def}"));
                 }
-                Some(s)
+                s
             }
         })
         .collect();
