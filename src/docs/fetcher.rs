@@ -1,18 +1,14 @@
 use crate::error::Error;
 
-/// Fetch the rustdoc JSON for a crate from docs.rs.
+/// Fetch the raw zstd-compressed rustdoc JSON bytes from docs.rs.
 ///
 /// The URL pattern is: `https://docs.rs/crate/{name}/{version}/json`
-/// docs.rs serves this as zstd-compressed JSON.
-///
-/// docs.rs serves varying rustdoc JSON format versions (53-56) across crates.
-/// We use `rustdoc-types` 0.56 and normalize older/newer formats before
-/// deserializing so that all versions parse successfully.
-pub async fn fetch_rustdoc_json(
+/// Returns the raw compressed bytes without any processing.
+pub async fn fetch_raw_bytes(
     client: &reqwest::Client,
     crate_name: &str,
     version: &str,
-) -> Result<rustdoc_types::Crate, Error> {
+) -> Result<Vec<u8>, Error> {
     let url = format!("https://docs.rs/crate/{crate_name}/{version}/json");
     tracing::info!("Fetching rustdoc JSON from {url}");
 
@@ -28,11 +24,19 @@ pub async fn fetch_rustdoc_json(
 
     let response = response.error_for_status()?;
     let bytes = response.bytes().await?;
+    Ok(bytes.to_vec())
+}
 
-    // docs.rs serves rustdoc JSON as zstd-compressed
-    let decompressed = zstd::stream::decode_all(bytes.as_ref()).map_err(Error::Zstd)?;
+/// Decode raw zstd-compressed rustdoc JSON bytes into a `rustdoc_types::Crate`.
+///
+/// Decompresses, normalizes across format versions, and deserializes.
+pub fn decode_raw_bytes(
+    bytes: &[u8],
+    crate_name: &str,
+    version: &str,
+) -> Result<rustdoc_types::Crate, Error> {
+    let decompressed = zstd::stream::decode_all(bytes).map_err(Error::Zstd)?;
 
-    // Parse into a generic JSON value first so we can normalize across format versions
     let mut value: serde_json::Value = serde_json::from_slice(&decompressed)?;
 
     let format_version = value
@@ -83,10 +87,10 @@ fn normalize_for_v56(value: &mut serde_json::Value, format_version: u64) {
 fn strip_attrs(value: &mut serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
-            if let Some(attrs) = map.get_mut("attrs") {
-                if attrs.is_array() {
-                    *attrs = serde_json::Value::Array(Vec::new());
-                }
+            if let Some(attrs) = map.get_mut("attrs")
+                && attrs.is_array()
+            {
+                *attrs = serde_json::Value::Array(Vec::new());
             }
             for v in map.values_mut() {
                 strip_attrs(v);
@@ -106,16 +110,16 @@ fn strip_attrs(value: &mut serde_json::Value) {
 /// Format version 56 added `Crate.target: Target` which older formats lack.
 /// We inject a minimal placeholder so deserialization succeeds.
 fn inject_dummy_target(value: &mut serde_json::Value) {
-    if let serde_json::Value::Object(map) = value {
-        if !map.contains_key("target") {
-            map.insert(
-                "target".to_string(),
-                serde_json::json!({
-                    "triple": "unknown",
-                    "target_features": []
-                }),
-            );
-        }
+    if let serde_json::Value::Object(map) = value
+        && !map.contains_key("target")
+    {
+        map.insert(
+            "target".to_string(),
+            serde_json::json!({
+                "triple": "unknown",
+                "target_features": []
+            }),
+        );
     }
 }
 
@@ -124,12 +128,10 @@ fn inject_dummy_target(value: &mut serde_json::Value) {
 /// Format version 57 added `ExternalCrate.path: PathBuf` which doesn't exist
 /// in rustdoc-types 0.56. Stripping it allows 57+ JSON to deserialize.
 fn strip_external_crate_paths(value: &mut serde_json::Value) {
-    if let Some(external_crates) = value.get_mut("external_crates") {
-        if let serde_json::Value::Object(crates_map) = external_crates {
-            for crate_value in crates_map.values_mut() {
-                if let serde_json::Value::Object(crate_obj) = crate_value {
-                    crate_obj.remove("path");
-                }
+    if let Some(serde_json::Value::Object(crates_map)) = value.get_mut("external_crates") {
+        for crate_value in crates_map.values_mut() {
+            if let serde_json::Value::Object(crate_obj) = crate_value {
+                crate_obj.remove("path");
             }
         }
     }
@@ -519,5 +521,49 @@ mod tests {
 
         let result: Result<rustdoc_types::Crate, _> = serde_json::from_value(value);
         assert!(result.is_ok(), "serde ignores unknown fields by default");
+    }
+
+    // ========== decode_raw_bytes tests ==========
+
+    /// Helper: zstd-compress a JSON value to simulate raw bytes from docs.rs.
+    fn zstd_compress_json(value: &serde_json::Value) -> Vec<u8> {
+        let json_bytes = serde_json::to_vec(value).unwrap();
+        zstd::stream::encode_all(json_bytes.as_slice(), 3).unwrap()
+    }
+
+    #[test]
+    fn decode_raw_bytes_roundtrip_v56() {
+        let value = minimal_rustdoc_json(56);
+        let compressed = zstd_compress_json(&value);
+
+        let krate = decode_raw_bytes(&compressed, "test_crate", "1.0.0")
+            .expect("should decode valid zstd-compressed rustdoc JSON");
+        assert_eq!(krate.index.len(), 2);
+    }
+
+    #[test]
+    fn decode_raw_bytes_normalizes_v53() {
+        // v53 JSON needs normalization (target injection, attr stripping)
+        let mut value = minimal_rustdoc_json(53);
+        value["index"]["1"]["attrs"] = json!(["#[derive(Debug)]"]);
+        let compressed = zstd_compress_json(&value);
+
+        let krate = decode_raw_bytes(&compressed, "test_crate", "1.0.0")
+            .expect("should normalize and decode v53 JSON");
+        assert_eq!(krate.index.len(), 2);
+    }
+
+    #[test]
+    fn decode_raw_bytes_rejects_invalid_zstd() {
+        let result = decode_raw_bytes(b"not valid zstd", "test_crate", "1.0.0");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decode_raw_bytes_rejects_invalid_json() {
+        // Valid zstd but not valid JSON inside
+        let compressed = zstd::stream::encode_all(b"not json".as_slice(), 3).unwrap();
+        let result = decode_raw_bytes(&compressed, "test_crate", "1.0.0");
+        assert!(result.is_err());
     }
 }

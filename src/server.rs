@@ -11,7 +11,8 @@ use serde::Deserialize;
 use tokio::sync::RwLock;
 
 use crate::cargo_lock::CargoLockIndex;
-use crate::docs::fetcher::fetch_rustdoc_json;
+use crate::docs::cache::DiskCache;
+use crate::docs::fetcher::{decode_raw_bytes, fetch_raw_bytes};
 use crate::docs::index::CrateIndex;
 use crate::docs::parser::parse_crate;
 use crate::docs::render;
@@ -23,6 +24,7 @@ pub struct RustDocsServer {
     cargo_lock: Option<Arc<CargoLockIndex>>,
     http_client: reqwest::Client,
     cache: CrateCache,
+    disk_cache: Option<Arc<DiskCache>>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -80,7 +82,21 @@ struct LookupImplBlockParams {
 
 #[tool_router]
 impl RustDocsServer {
-    pub fn new(cargo_lock: Option<CargoLockIndex>) -> Self {
+    pub fn new(cargo_lock: Option<CargoLockIndex>, use_disk_cache: bool) -> Self {
+        let disk_cache = if use_disk_cache {
+            DiskCache::new().map(Arc::new)
+        } else {
+            None
+        };
+
+        match &disk_cache {
+            Some(_) => tracing::info!("Disk cache enabled"),
+            None if use_disk_cache => {
+                tracing::warn!("Could not determine cache directory, disk cache disabled");
+            }
+            None => tracing::info!("Disk cache disabled"),
+        }
+
         Self {
             cargo_lock: cargo_lock.map(Arc::new),
             http_client: reqwest::Client::builder()
@@ -88,6 +104,7 @@ impl RustDocsServer {
                 .build()
                 .expect("failed to build HTTP client"),
             cache: Arc::new(RwLock::new(HashMap::new())),
+            disk_cache,
             tool_router: Self::tool_router(),
         }
     }
@@ -201,16 +218,21 @@ impl RustDocsServer {
         if let Some(v) = explicit {
             return v.to_string();
         }
-        if let Some(ref lock) = self.cargo_lock {
-            if let Some(v) = lock.get_version(crate_name) {
-                tracing::debug!("Resolved {crate_name} version from Cargo.lock: {v}");
-                return v.to_string();
-            }
+        if let Some(ref lock) = self.cargo_lock
+            && let Some(v) = lock.get_version(crate_name)
+        {
+            tracing::debug!("Resolved {crate_name} version from Cargo.lock: {v}");
+            return v.to_string();
         }
         "latest".to_string()
     }
 
     /// Get a cached CrateIndex or fetch/parse/cache a new one.
+    ///
+    /// Cache layers (checked in order):
+    /// 1. In-memory `CrateCache` (fast path)
+    /// 2. On-disk cache of raw zstd bytes (skipped for "latest")
+    /// 3. HTTP fetch from docs.rs (writes to disk cache for pinned versions)
     async fn get_or_load_index(
         &self,
         crate_name: &str,
@@ -218,7 +240,7 @@ impl RustDocsServer {
     ) -> Result<Arc<CrateIndex>, crate::error::Error> {
         let key = (crate_name.to_string(), version.to_string());
 
-        // Fast path: read lock
+        // Fast path: in-memory cache read lock
         {
             let cache = self.cache.read().await;
             if let Some(index) = cache.get(&key) {
@@ -226,9 +248,9 @@ impl RustDocsServer {
             }
         }
 
-        // Slow path: fetch, parse, then write lock
-        tracing::info!("Loading {crate_name} v{version} from docs.rs...");
-        let krate = fetch_rustdoc_json(&self.http_client, crate_name, version).await?;
+        // Disk cache is only used for pinned (non-"latest") versions
+        let disk = self.disk_cache.as_ref().filter(|_| version != "latest");
+        let krate = self.fetch_crate(disk, crate_name, version).await?;
 
         // Normalize crate name (hyphens -> underscores in rustdoc)
         let normalized_name = crate_name.replace('-', "_");
@@ -239,5 +261,40 @@ impl RustDocsServer {
         cache.entry(key).or_insert_with(|| Arc::clone(&index));
 
         Ok(index)
+    }
+
+    /// Fetch and decode rustdoc JSON, using the disk cache when available.
+    ///
+    /// On disk cache hit, decodes directly. On miss or corruption, fetches from
+    /// docs.rs and writes through to the disk cache for future use.
+    async fn fetch_crate(
+        &self,
+        disk: Option<&Arc<DiskCache>>,
+        crate_name: &str,
+        version: &str,
+    ) -> Result<rustdoc_types::Crate, crate::error::Error> {
+        if let Some(disk) = disk
+            && let Some(bytes) = disk.read(crate_name, version).await
+        {
+            match decode_raw_bytes(&bytes, crate_name, version) {
+                Ok(krate) => return Ok(krate),
+                Err(e) => {
+                    tracing::warn!(
+                        "Corrupted cache entry for {crate_name} v{version}, \
+                         removing and fetching from network: {e}"
+                    );
+                    disk.remove(crate_name, version).await;
+                }
+            }
+        }
+
+        tracing::info!("Loading {crate_name} v{version} from docs.rs...");
+        let bytes = fetch_raw_bytes(&self.http_client, crate_name, version).await?;
+
+        if let Some(disk) = disk {
+            disk.write(crate_name, version, &bytes).await;
+        }
+
+        decode_raw_bytes(&bytes, crate_name, version)
     }
 }

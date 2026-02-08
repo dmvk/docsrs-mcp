@@ -19,8 +19,13 @@ rust-docs-mcp is an MCP (Model Context Protocol) server that provides AI assista
                                   │  │  Crate Cache    │  │
                                   │  │  HashMap<K,V>   │  │
                                   │  └───────┬────────┘  │
+                                  │          │           │
+                                  │  ┌───────▼────────┐  │
+                                  │  │  DiskCache      │  │
+                                  │  │  (on-disk zstd) │  │
+                                  │  └───────┬────────┘  │
                                   └──────────┼──────────┘
-                                             │ cache miss
+                                             │ disk miss
                                   ┌──────────▼──────────┐
                                   │     docs::fetcher    │
                                   │  HTTP GET docs.rs    │
@@ -50,19 +55,30 @@ rust-docs-mcp is an MCP (Model Context Protocol) server that provides AI assista
 ## Module Responsibilities
 
 ### `main.rs`
-Entry point. Initializes `tracing` (to stderr, since stdout is the MCP transport), discovers and parses `Cargo.lock` from CWD for version auto-resolution, then starts the MCP server on stdio.
+Entry point. Parses CLI flags (`--no-cache`, `--clear-cache`), initializes `tracing` (to stderr, since stdout is the MCP transport), discovers and parses `Cargo.lock` from CWD for version auto-resolution, then starts the MCP server on stdio.
 
 ### `server.rs`
 Implements `ServerHandler` for `RustDocsServer`. Contains:
 - 4 tool parameter structs with `JsonSchema` derives for MCP schema generation
 - Tool implementations that resolve versions, load/cache crate indices, and render results
 - `resolve_version()`: explicit > Cargo.lock > "latest"
-- `get_or_load_index()`: double-check locking cache pattern with `Arc<RwLock<HashMap>>`
+- `get_or_load_index()`: double-check locking cache pattern with `Arc<RwLock<HashMap>>`, checks disk cache on in-memory miss
+- `fetch_crate()`: coordinates disk cache reads/writes around HTTP fetches — on disk hit, decodes directly; on miss or corruption, fetches from docs.rs and writes through to disk cache
 
 ### `cargo_lock.rs`
 `CargoLockIndex` walks up from CWD to find `Cargo.lock`, parses it, and builds a `HashMap<crate_name, version>`. When multiple versions of the same crate exist, keeps the latest.
 
+### `docs/cache.rs`
+On-disk cache for raw zstd-compressed bytes from docs.rs.
+- `DiskCache` struct with `base_dir: PathBuf`; `base_dir()` returns `{platform_cache_dir}/rust-docs-mcp/`
+- `new()` returns `Option<Self>` (None if no platform cache dir); `read()` / `write()` / `remove()` for per-crate-version entries; `clear()` deletes the entire cache directory
+- Atomic writes via temp-file-then-rename to prevent partial reads
+- `sanitize_path_component()` rejects path separators, traversal sequences, and null bytes
+- All disk I/O errors are non-fatal — logged as warnings and treated as cache misses
+
 ### `docs/fetcher.rs`
+Split into two public functions: `fetch_raw_bytes()` (HTTP fetch, returns raw zstd bytes) and `decode_raw_bytes()` (zstd decompress + normalize + deserialize). This split enables the disk cache to store raw bytes and decode them independently of fetching.
+
 Fetches zstd-compressed rustdoc JSON from `https://docs.rs/crate/{name}/{version}/json`. The critical complexity here is **format version normalization**:
 
 | Format Version | Change | Normalization |

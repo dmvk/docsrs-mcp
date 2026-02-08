@@ -7,6 +7,7 @@ use rmcp::ServiceExt;
 use rmcp::transport::stdio;
 
 use crate::cargo_lock::CargoLockIndex;
+use crate::docs::cache::DiskCache;
 use crate::server::RustDocsServer;
 
 #[tokio::main]
@@ -20,6 +21,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(std::io::stderr)
         .init();
 
+    // Parse CLI flags
+    let args: Vec<String> = std::env::args().collect();
+    let no_cache = args.iter().any(|a| a == "--no-cache");
+    let clear_cache = args.iter().any(|a| a == "--clear-cache");
+
+    if clear_cache {
+        DiskCache::clear().await;
+    }
+
     // Find and parse Cargo.lock from CWD
     let cwd = std::env::current_dir()?;
     let cargo_lock = CargoLockIndex::find_and_parse(&cwd);
@@ -29,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("No Cargo.lock found, will use explicit versions or 'latest'");
     }
 
-    let server = RustDocsServer::new(cargo_lock);
+    let server = RustDocsServer::new(cargo_lock, !no_cache);
 
     let service = server.serve(stdio()).await.inspect_err(|e| {
         tracing::error!("Failed to start MCP server: {e}");
