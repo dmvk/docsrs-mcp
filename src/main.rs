@@ -31,12 +31,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let server = RustDocsServer::new(cargo_lock);
 
-    let service = server
-        .serve(stdio())
-        .await
-        .inspect_err(|e| {
-            tracing::error!("Failed to start MCP server: {e}");
-        })?;
+    let service = server.serve(stdio()).await.inspect_err(|e| {
+        tracing::error!("Failed to start MCP server: {e}");
+    })?;
 
     service.waiting().await?;
 

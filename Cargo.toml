@@ -1,7 +1,7 @@
 [package]
 name = "rust-docs-mcp"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "MCP server for Rust crate documentation from docs.rs"
 
 [dependencies]

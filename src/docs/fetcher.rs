@@ -39,9 +39,7 @@ pub async fn fetch_rustdoc_json(
         .get("format_version")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
-    tracing::info!(
-        "Rustdoc JSON for {crate_name} v{version} has format_version {format_version}"
-    );
+    tracing::info!("Rustdoc JSON for {crate_name} v{version} has format_version {format_version}");
 
     normalize_for_v56(&mut value, format_version);
 
@@ -460,8 +458,8 @@ mod tests {
     fn roundtrip_v56_deserializes_successfully() {
         let mut value = minimal_rustdoc_json(56);
         normalize_for_v56(&mut value, 56);
-        let krate: rustdoc_types::Crate = serde_json::from_value(value)
-            .expect("v56 JSON should deserialize after normalization");
+        let krate: rustdoc_types::Crate =
+            serde_json::from_value(value).expect("v56 JSON should deserialize after normalization");
         assert_eq!(krate.index.len(), 2);
     }
 
@@ -520,9 +518,6 @@ mod tests {
             .insert("path".to_string(), json!("/rustc/library/std"));
 
         let result: Result<rustdoc_types::Crate, _> = serde_json::from_value(value);
-        assert!(
-            result.is_ok(),
-            "serde ignores unknown fields by default"
-        );
+        assert!(result.is_ok(), "serde ignores unknown fields by default");
     }
 }

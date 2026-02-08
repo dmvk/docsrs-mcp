@@ -43,7 +43,7 @@ All tools accept `crate_name` (required) and `version` (optional, auto-resolved)
 
 ## Conventions
 
-- Rust 2021 edition
+- Rust 2024 edition
 - Error handling: `thiserror` derive macros, `Error` enum in `error.rs`
 - Logging: `tracing` crate — `info` for major operations, `debug` for version resolution, `trace` for skipped items
 - Async: `tokio` runtime, `reqwest` for HTTP

@@ -92,8 +92,18 @@ pub fn render_item(item: &IndexedItem) -> String {
             }
         }
         ItemKind::Trait => {
-            let required: Vec<_> = item.detail.methods.iter().filter(|m| m.is_required).collect();
-            let provided: Vec<_> = item.detail.methods.iter().filter(|m| !m.is_required).collect();
+            let required: Vec<_> = item
+                .detail
+                .methods
+                .iter()
+                .filter(|m| m.is_required)
+                .collect();
+            let provided: Vec<_> = item
+                .detail
+                .methods
+                .iter()
+                .filter(|m| !m.is_required)
+                .collect();
 
             if !required.is_empty() {
                 parts.push("### Required Methods\n".to_string());
@@ -124,11 +134,7 @@ pub fn render_item(item: &IndexedItem) -> String {
 }
 
 /// Render search results (for `search_crate`).
-pub fn render_search_results(
-    index: &CrateIndex,
-    query: &str,
-    results: &[SearchResult],
-) -> String {
+pub fn render_search_results(index: &CrateIndex, query: &str, results: &[SearchResult]) -> String {
     if results.is_empty() {
         let suggestions = index.suggest_similar(query, 5);
         let suggestion_text = if suggestions.is_empty() {
@@ -166,10 +172,7 @@ pub fn render_search_results(
 }
 
 /// Render impl blocks for a type (for `lookup_impl_block`).
-pub fn render_impls(
-    item_path: &str,
-    impls: &[&ImplBlock],
-) -> String {
+pub fn render_impls(item_path: &str, impls: &[&ImplBlock]) -> String {
     if impls.is_empty() {
         return format!("No implementations found for `{item_path}`.");
     }

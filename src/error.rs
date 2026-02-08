@@ -15,11 +15,10 @@ pub enum Error {
     #[error("Cargo.lock parsing failed: {0}")]
     CargoLock(#[from] cargo_lock::Error),
 
-    #[error("Rustdoc JSON not available for {crate_name} v{version}. This crate may have been published before docs.rs started generating JSON. See: https://docs.rs/{crate_name}/{version}")]
-    JsonNotAvailable {
-        crate_name: String,
-        version: String,
-    },
+    #[error(
+        "Rustdoc JSON not available for {crate_name} v{version}. This crate may have been published before docs.rs started generating JSON. See: https://docs.rs/{crate_name}/{version}"
+    )]
+    JsonNotAvailable { crate_name: String, version: String },
 
     #[error("Crate not found: {0}")]
     CrateNotFound(String),

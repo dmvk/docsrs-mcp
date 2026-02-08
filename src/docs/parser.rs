@@ -50,10 +50,7 @@ pub fn parse_crate(krate: &Crate, crate_name: &str, version: &str) -> CrateIndex
         };
 
         // Skip sub-items that are children of other items (fields, variants, etc.)
-        if matches!(
-            &item.inner,
-            ItemEnum::StructField(_) | ItemEnum::Variant(_)
-        ) {
+        if matches!(&item.inner, ItemEnum::StructField(_) | ItemEnum::Variant(_)) {
             continue;
         }
 
@@ -248,9 +245,7 @@ impl<'a> ParseContext<'a> {
                     } else {
                         ""
                     };
-                    format!(
-                        "pub struct {name}{generics} {{\n{fields_str}{private}}}",
-                    )
+                    format!("pub struct {name}{generics} {{\n{fields_str}{private}}}",)
                 }
             }
         }
@@ -518,12 +513,7 @@ impl<'a> ParseContext<'a> {
     }
 
     /// Process an impl block and attach it to the implementing type.
-    fn process_impl(
-        &self,
-        impl_: &Impl,
-        path_map: &HashMap<Id, String>,
-        index: &mut CrateIndex,
-    ) {
+    fn process_impl(&self, impl_: &Impl, path_map: &HashMap<Id, String>, index: &mut CrateIndex) {
         let type_path = match &impl_.for_ {
             Type::ResolvedPath(path) => resolve_path(path, path_map),
             _ => return,
@@ -587,11 +577,7 @@ impl<'a> ParseContext<'a> {
             methods,
         };
 
-        index
-            .impl_blocks
-            .entry(type_path)
-            .or_default()
-            .push(block);
+        index.impl_blocks.entry(type_path).or_default().push(block);
     }
 }
 
@@ -741,9 +727,7 @@ fn render_generic_arg(arg: &GenericArg) -> String {
 fn render_generic_bound(bound: &GenericBound) -> String {
     match bound {
         GenericBound::TraitBound {
-            trait_,
-            modifier,
-            ..
+            trait_, modifier, ..
         } => {
             let prefix = match modifier {
                 rustdoc_types::TraitBoundModifier::None => "",
@@ -826,29 +810,25 @@ fn render_where_clause(predicates: &[rustdoc_types::WherePredicate]) -> String {
     let clauses: Vec<String> = predicates
         .iter()
         .map(|pred| match pred {
-            rustdoc_types::WherePredicate::BoundPredicate {
-                type_, bounds, ..
-            } => {
+            rustdoc_types::WherePredicate::BoundPredicate { type_, bounds, .. } => {
                 let bounds_str: Vec<String> = bounds.iter().map(render_generic_bound).collect();
                 format!("{}: {}", render_type(type_), bounds_str.join(" + "))
             }
             rustdoc_types::WherePredicate::LifetimePredicate { lifetime, outlives } => {
                 format!("{lifetime}: {}", outlives.join(" + "))
             }
-            rustdoc_types::WherePredicate::EqPredicate { lhs, rhs } => {
-                match rhs {
-                    rustdoc_types::Term::Type(ty) => {
-                        format!("{} = {}", render_type(lhs), render_type(ty))
-                    }
-                    rustdoc_types::Term::Constant(c) => {
-                        format!(
-                            "{} = {}",
-                            render_type(lhs),
-                            c.value.as_deref().unwrap_or(&c.expr)
-                        )
-                    }
+            rustdoc_types::WherePredicate::EqPredicate { lhs, rhs } => match rhs {
+                rustdoc_types::Term::Type(ty) => {
+                    format!("{} = {}", render_type(lhs), render_type(ty))
                 }
-            }
+                rustdoc_types::Term::Constant(c) => {
+                    format!(
+                        "{} = {}",
+                        render_type(lhs),
+                        c.value.as_deref().unwrap_or(&c.expr)
+                    )
+                }
+            },
         })
         .collect();
 
