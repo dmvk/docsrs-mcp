@@ -11,7 +11,7 @@ categories = ["development-tools"]
 exclude = [".github/", "CLAUDE.md", "/docs/"]
 
 [dependencies]
-cargo-lock = "10"
+cargo-lock = "11"
 dirs = "6"
 reqwest = { version = "0.12", features = ["gzip"] }
 rmcp = { version = "0.14", features = ["server", "transport-io"] }
