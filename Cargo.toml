@@ -6,6 +6,9 @@ description = "MCP server for Rust crate documentation from docs.rs"
 rust-version = "1.93"
 license = "Apache-2.0"
 repository = "https://github.com/dmvk/docsrs-mcp"
+keywords = ["mcp", "rust", "documentation", "docs-rs", "rustdoc"]
+categories = ["development-tools"]
+exclude = [".github/", "CLAUDE.md", "/docs/"]
 
 [dependencies]
 cargo-lock = "10"
