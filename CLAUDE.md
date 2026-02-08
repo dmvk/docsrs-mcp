@@ -1,4 +1,4 @@
-# rust-docs-mcp
+# docsrs-mcp
 
 MCP server that fetches and serves Rust crate documentation from docs.rs. Exposes 4 tools for exploring crate APIs via the Model Context Protocol.
 
@@ -64,7 +64,7 @@ All tools accept `crate_name` (required) and `version` (optional, auto-resolved)
 
 - **Rustdoc JSON format versions**: docs.rs serves formats v53–v57+ depending on when a crate was built. `fetcher.rs::normalize_for_v56()` patches older/newer JSON to match `rustdoc-types` 0.56. When updating `rustdoc-types`, this normalization must be revisited.
 - **Crate name normalization**: Rust crate names use hyphens (`my-crate`) but rustdoc paths use underscores (`my_crate`). `server.rs::get_or_load_index()` does `replace('-', "_")`.
-- **Cache key**: `(crate_name, version)` tuple. In-memory cache has no TTL or eviction. Disk cache stores raw zstd bytes at `{platform_cache_dir}/rust-docs-mcp/{crate}/{version}.json.zst`. `"latest"` versions skip the disk cache (only pinned versions are cached on disk). Path sanitization in `cache_path()` prevents directory traversal.
+- **Cache key**: `(crate_name, version)` tuple. In-memory cache has no TTL or eviction. Disk cache stores raw zstd bytes at `{platform_cache_dir}/docsrs-mcp/{crate}/{version}.json.zst`. `"latest"` versions skip the disk cache (only pinned versions are cached on disk). Path sanitization in `cache_path()` prevents directory traversal.
 - **Double-check locking**: `get_or_load_index` uses read lock fast path, then write lock slow path with re-check to avoid duplicate fetches under concurrency.
 
 ## Learnings

@@ -1,6 +1,6 @@
 # Documentation Index
 
-This folder contains detailed documentation for `rust-docs-mcp`.
+This folder contains detailed documentation for `docsrs-mcp`.
 
 ## Contents
 

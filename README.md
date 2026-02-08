@@ -1,6 +1,6 @@
-# rust-docs-mcp
+# docsrs-mcp
 
-[![CI](https://github.com/dmvk/rust-docs-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dmvk/rust-docs-mcp/actions/workflows/ci.yml)
+[![CI](https://github.com/dmvk/docsrs-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dmvk/docsrs-mcp/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Rust: 1.93+](https://img.shields.io/badge/Rust-1.93%2B-orange.svg)](https://www.rust-lang.org)
 
@@ -31,12 +31,12 @@ All tools accept `crate_name` (required) and `version` (optional, auto-resolved)
 Build from source:
 
 ```bash
-git clone https://github.com/dmvk/rust-docs-mcp.git
-cd rust-docs-mcp
+git clone https://github.com/dmvk/docsrs-mcp.git
+cd docsrs-mcp
 cargo build --release
 ```
 
-The binary will be at `target/release/rust-docs-mcp`.
+The binary will be at `target/release/docsrs-mcp`.
 
 ## Configuration
 
@@ -48,7 +48,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 {
   "mcpServers": {
     "rust-docs": {
-      "command": "/path/to/rust-docs-mcp"
+      "command": "/path/to/docsrs-mcp"
     }
   }
 }
@@ -57,7 +57,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 ### Claude Code
 
 ```bash
-claude mcp add rust-docs /path/to/rust-docs-mcp
+claude mcp add rust-docs /path/to/docsrs-mcp
 ```
 
 ### Generic MCP clients

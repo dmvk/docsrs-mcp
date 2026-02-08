@@ -238,6 +238,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "docsrs-mcp"
+version = "0.1.0"
+dependencies = [
+ "cargo-lock",
+ "dirs",
+ "reqwest",
+ "rmcp",
+ "rustdoc-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zstd",
+]
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1171,25 +1190,6 @@ dependencies = [
  "quote",
  "serde_json",
  "syn",
-]
-
-[[package]]
-name = "rust-docs-mcp"
-version = "0.1.0"
-dependencies = [
- "cargo-lock",
- "dirs",
- "reqwest",
- "rmcp",
- "rustdoc-types",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "zstd",
 ]
 
 [[package]]

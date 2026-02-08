@@ -2,7 +2,7 @@
 
 ## Overview
 
-rust-docs-mcp is an MCP (Model Context Protocol) server that provides AI assistants with access to Rust crate documentation. It fetches rustdoc JSON from docs.rs, parses it into an in-memory index, and exposes query tools over MCP's stdio transport.
+docsrs-mcp is an MCP (Model Context Protocol) server that provides AI assistants with access to Rust crate documentation. It fetches rustdoc JSON from docs.rs, parses it into an in-memory index, and exposes query tools over MCP's stdio transport.
 
 ## System Diagram
 
@@ -70,7 +70,7 @@ Implements `ServerHandler` for `RustDocsServer`. Contains:
 
 ### `docs/cache.rs`
 On-disk cache for raw zstd-compressed bytes from docs.rs.
-- `DiskCache` struct with `base_dir: PathBuf`; `base_dir()` returns `{platform_cache_dir}/rust-docs-mcp/`
+- `DiskCache` struct with `base_dir: PathBuf`; `base_dir()` returns `{platform_cache_dir}/docsrs-mcp/`
 - `new()` returns `Option<Self>` (None if no platform cache dir); `read()` / `write()` / `remove()` for per-crate-version entries; `clear()` deletes the entire cache directory
 - Atomic writes via temp-file-then-rename to prevent partial reads
 - `sanitize_path_component()` rejects path separators, traversal sequences, and null bytes

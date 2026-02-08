@@ -100,7 +100,7 @@ impl RustDocsServer {
         Self {
             cargo_lock: cargo_lock.map(Arc::new),
             http_client: reqwest::Client::builder()
-                .user_agent("rust-docs-mcp/0.1.0")
+                .user_agent("docsrs-mcp/0.1.0")
                 .build()
                 .expect("failed to build HTTP client"),
             cache: Arc::new(RwLock::new(HashMap::new())),

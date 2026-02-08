@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 /// On-disk cache for raw zstd-compressed rustdoc JSON bytes from docs.rs.
 ///
-/// File layout: `{cache_dir}/rust-docs-mcp/{crate_name}/{version}.json.zst`
+/// File layout: `{cache_dir}/docsrs-mcp/{crate_name}/{version}.json.zst`
 ///
 /// All disk errors are non-fatal — logged as warnings and treated as cache misses.
 pub struct DiskCache {
@@ -10,17 +10,17 @@ pub struct DiskCache {
 }
 
 impl DiskCache {
-    /// Platform-appropriate cache base directory: `{cache_dir}/rust-docs-mcp/`
+    /// Platform-appropriate cache base directory: `{cache_dir}/docsrs-mcp/`
     fn base_dir() -> Option<PathBuf> {
-        Some(dirs::cache_dir()?.join("rust-docs-mcp"))
+        Some(dirs::cache_dir()?.join("docsrs-mcp"))
     }
 
     /// Create a new DiskCache using the platform-appropriate cache directory.
     /// Returns `None` if no cache directory can be determined.
     pub fn new() -> Option<Self> {
-        Some(Self {
-            base_dir: Self::base_dir()?,
-        })
+        let base_dir = Self::base_dir()?;
+        migrate_old_cache_dir(&base_dir);
+        Some(Self { base_dir })
     }
 
     #[cfg(test)]
@@ -99,6 +99,28 @@ impl DiskCache {
         self.base_dir
             .join(sanitize_path_component(crate_name))
             .join(format!("{}.json.zst", sanitize_path_component(version)))
+    }
+}
+
+/// One-time migration: rename the old `rust-docs-mcp` cache directory to `docsrs-mcp`.
+/// Only acts when the old directory exists and the new one does not.
+fn migrate_old_cache_dir(new_base: &std::path::Path) {
+    let Some(old_base) = new_base.parent().map(|p| p.join("rust-docs-mcp")) else {
+        return;
+    };
+    if old_base.is_dir() && !new_base.exists() {
+        match std::fs::rename(&old_base, new_base) {
+            Ok(()) => tracing::info!(
+                "Migrated disk cache from {} to {}",
+                old_base.display(),
+                new_base.display()
+            ),
+            Err(e) => tracing::warn!(
+                "Failed to migrate cache from {} to {}: {e}",
+                old_base.display(),
+                new_base.display()
+            ),
+        }
     }
 }
 
@@ -285,6 +307,58 @@ mod tests {
         assert_eq!(
             cache.read("serde", "2.0.0").await.as_deref(),
             Some(b"v2 data".as_slice())
+        );
+    }
+
+    // ========== migrate_old_cache_dir tests ==========
+
+    #[test]
+    fn migrate_renames_old_dir_to_new() {
+        let parent = tempfile::tempdir().unwrap();
+        let old_dir = parent.path().join("rust-docs-mcp");
+        let new_dir = parent.path().join("docsrs-mcp");
+
+        std::fs::create_dir(&old_dir).unwrap();
+        std::fs::write(old_dir.join("data.txt"), b"cached").unwrap();
+
+        migrate_old_cache_dir(&new_dir);
+
+        assert!(!old_dir.exists(), "old dir should be gone after migration");
+        assert!(new_dir.exists(), "new dir should exist after migration");
+        assert_eq!(std::fs::read(new_dir.join("data.txt")).unwrap(), b"cached");
+    }
+
+    #[test]
+    fn migrate_skips_when_new_dir_already_exists() {
+        let parent = tempfile::tempdir().unwrap();
+        let old_dir = parent.path().join("rust-docs-mcp");
+        let new_dir = parent.path().join("docsrs-mcp");
+
+        std::fs::create_dir(&old_dir).unwrap();
+        std::fs::write(old_dir.join("old.txt"), b"old").unwrap();
+        std::fs::create_dir(&new_dir).unwrap();
+        std::fs::write(new_dir.join("new.txt"), b"new").unwrap();
+
+        migrate_old_cache_dir(&new_dir);
+
+        // Both directories should remain untouched
+        assert!(
+            old_dir.exists(),
+            "old dir should remain when new dir exists"
+        );
+        assert_eq!(std::fs::read(new_dir.join("new.txt")).unwrap(), b"new");
+    }
+
+    #[test]
+    fn migrate_noop_when_no_old_dir() {
+        let parent = tempfile::tempdir().unwrap();
+        let new_dir = parent.path().join("docsrs-mcp");
+
+        migrate_old_cache_dir(&new_dir);
+
+        assert!(
+            !new_dir.exists(),
+            "new dir should not be created from nothing"
         );
     }
 }
