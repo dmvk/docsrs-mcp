@@ -3,6 +3,9 @@ name = "rust-docs-mcp"
 version = "0.1.0"
 edition = "2024"
 description = "MCP server for Rust crate documentation from docs.rs"
+rust-version = "1.93"
+license = "Apache-2.0"
+repository = "https://github.com/dmvk/rust-docs-mcp"
 
 [dependencies]
 cargo-lock = "10"
